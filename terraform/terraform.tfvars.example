@@ -1,0 +1,21 @@
+# Copie para terraform.tfvars apenas localmente.
+# Nunca versione terraform.tfvars real.
+
+aws_region  = "us-east-1"
+project_name = "oficina"
+environment = "academy"
+
+vpc_cidr            = "10.30.0.0/16"
+public_subnet_cidrs = ["10.30.1.0/24", "10.30.2.0/24"]
+
+db_name           = "OficinaDb"
+db_username       = "CHANGE_ME"
+db_password       = "CHANGE_ME_STRONG_PASSWORD"
+db_instance_class = "db.t3.micro"
+
+allocated_storage       = 20
+backup_retention_period = 0
+skip_final_snapshot     = true
+
+# Preencha com seu IP publico /32, por exemplo "203.0.113.10/32".
+operator_cidr = "203.0.113.10/32"
