@@ -1,4 +1,4 @@
-name: Terraform Plan
+name: Terraform Check and Plan
 
 on:
   pull_request:
@@ -13,9 +13,30 @@ defaults:
     working-directory: terraform
 
 jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform fmt
+        run: terraform fmt -check -recursive
+
+      - name: Terraform init without backend
+        run: terraform init -backend=false
+
+      - name: Terraform validate
+        run: terraform validate
+
   plan:
     name: Plan
     runs-on: ubuntu-latest
+    needs: check
 
     env:
       AWS_REGION: ${{ secrets['AWS_REGION'] }}

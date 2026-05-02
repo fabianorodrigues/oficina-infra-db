@@ -35,7 +35,7 @@ resource "aws_db_instance" "oficina" {
   skip_final_snapshot       = var.skip_final_snapshot
   final_snapshot_identifier = var.skip_final_snapshot ? null : "${local.db_identifier}-final-snapshot"
 
-  apply_immediately         = true
+  apply_immediately          = true
   auto_minor_version_upgrade = true
 
   tags = {
