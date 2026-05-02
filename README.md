@@ -115,7 +115,7 @@ Informe o nome do bucket no secret:
 TF_STATE_BUCKET
 ```
 
-Os workflows `terraform-plan` e `terraform-apply`  garantem antes do `terraform init`:
+Os workflows `terraform-check-plan` e `terraform-apply` garantem antes do `terraform init`:
 
 - criacao do bucket, se ainda nao existir;
 - versionamento;
@@ -136,12 +136,12 @@ Se o bucket ja existir em outra conta AWS, escolha outro nome globalmente unico 
 
 Abra um pull request para `main`.
 
-Devem rodar automaticamente:
+Deve rodar automaticamente o workflow `Terraform Check and Plan`, com os jobs em sequencia:
 
-- `Terraform Check`;
-- `Terraform Plan`.
+- `Check`;
+- `Plan`.
 
-O `Terraform Check` executa:
+O job `Check` executa:
 
 - checkout;
 - setup Terraform;
@@ -149,7 +149,7 @@ O `Terraform Check` executa:
 - `terraform init -backend=false`;
 - `terraform validate`.
 
-O `Terraform Plan` executa:
+O job `Plan` executa depois que o `Check` concluir com sucesso:
 
 - checkout;
 - setup Terraform;
