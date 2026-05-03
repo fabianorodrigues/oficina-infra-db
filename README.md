@@ -1,185 +1,159 @@
 # oficina-infra-db
 
-Infraestrutura do banco de dados da Oficina API.
+## Visão geral
 
-Este repositorio cria apenas a infraestrutura do Amazon RDS SQL Server Express usada pela API principal do repositorio `oficina-api`.
+Este repositório faz parte da Fase 3 do Tech Challenge FIAP e provisiona a infraestrutura do banco de dados gerenciado da Oficina API.
 
-## Objetivo do repositorio
+A infraestrutura é criada com Terraform e entrega um Amazon RDS SQL Server Express usado pela aplicação principal e pela Lambda de autenticação.
 
-Manter uma infraestrutura simples para:
+Os demais componentes ficam em repositórios separados:
 
-- configurar secrets no GitHub;
-- rodar check e plan em pull requests para `main`;
-- provisionar o banco manualmente por GitHub Actions;
+| Repositório | Responsabilidade |
+|---|---|
+| `oficina-infra-db` | Infraestrutura do banco de dados |
+| `oficina-api` | API principal e migrations da aplicação |
+| `oficina-auth-lambda` | Lambda Auth e Lambda Authorizer |
 
-## Arquitetura criada
+## Conteúdo deste repositório
 
-Regiao padrao:
+- Terraform da infraestrutura do banco;
+- VPC e subnets;
+- Security Groups;
+- DB Subnet Group;
+- Amazon RDS SQL Server Express;
+- workflows de validação, plano e provisionamento manual.
 
-```text
-us-east-1
-```
+Os workflows esperados são:
 
-O Terraform cria:
+| Workflow | Quando executa | Finalidade |
+|---|---|---|
+| `Terraform Check and Plan` | Pull Request para `main` | Validar formatação, validar Terraform e gerar plano |
+| `Terraform Apply` | Manual | Provisionar ou atualizar a infraestrutura |
 
-- VPC simples;
-- 2 subnets publicas em Availability Zones diferentes;
+## Arquitetura provisionada
+
+O Terraform provisiona os seguintes recursos:
+
+- VPC;
+- subnets públicas;
 - Internet Gateway;
-- Route Table publica;
+- Route Table pública;
 - Security Group do RDS;
 - Security Group da Lambda Auth;
 - DB Subnet Group;
-- Amazon RDS for SQL Server Express.
+- Amazon RDS SQL Server Express;
+- bucket S3 para Terraform State, criado ou validado pelo workflow.
 
-O RDS fica publicamente acessivel para facilitar testes locais, mas a porta `1433` fica restrita no Security Group a:
-
-- Security Group da Lambda Auth;
-- `operator_cidr`: IP publico do operador em formato `/32`, usado para SSMS, sqlcmd ou API local.
-
-Nao existe regra de banco para `0.0.0.0/0`.
-
-## Recursos AWS provisionados
-
-RDS:
+Diagrama simplificado:
 
 ```text
-Engine: sqlserver-ex
-Edition: SQL Server Express
-Instance class: db.t3.micro
-Storage: 20 GB
-Storage type: gp2
-Port: 1433
-Publicly accessible: true
-Multi-AZ: false
-Enhanced Monitoring: disabled
-Performance Insights: disabled
-Backup retention: 0
-Deletion protection: false
+Cliente local / SSMS / sqlcmd / API local
+        |
+        v
+RDS SQL Server Express
+
+Lambda Auth
+        |
+        v
+RDS SQL Server Express
 ```
 
-O banco logico esperado pela aplicacao e `OficinaDb`. As tabelas e migrations sao aplicadas pelo repositorio `oficina-api`.
+O RDS fica publicamente acessível para facilitar testes locais, mas a porta `1433` deve ficar restrita a:
 
-## Secrets necessarios
+- IP público do operador, informado em `TF_VAR_operator_cidr` com `/32`;
+- Security Group da Lambda Auth.
 
-Configure em:
+Não deve existir regra de entrada `1433` aberta para `0.0.0.0/0`.
+
+## Secrets necessários no GitHub
+
+Configure os secrets em:
 
 ```text
 GitHub > Settings > Secrets and variables > Actions
 ```
 
-Secrets obrigatorios:
+| Secret | Descrição | Exemplo |
+|---|---|---|
+| `AWS_ACCESS_KEY_ID` | Access Key do AWS Academy | keyId1234 |
+| `AWS_SECRET_ACCESS_KEY` | Secret Key do AWS Academy | accessKey12345 |
+| `AWS_SESSION_TOKEN` | Token temporário do AWS Academy | expira |
+| `AWS_REGION` | Região AWS | `us-east-1` |
+| `TF_STATE_BUCKET` | Bucket S3 do Terraform State | `oficina-tfstate-xpto` |
+| `TF_VAR_db_username` | Usuário administrador do SQL Server | user |
+| `TF_VAR_db_password` | Senha do SQL Server | senha123 |
+| `TF_VAR_operator_cidr` | Seu IP público com `/32` | `000.000.00.00/32` |
 
-```text
-AWS_ACCESS_KEY_ID
-AWS_SECRET_ACCESS_KEY
-AWS_SESSION_TOKEN
-AWS_REGION
-TF_STATE_BUCKET
-TF_VAR_db_username
-TF_VAR_db_password
-TF_VAR_operator_cidr
-```
-
-Use:
-
-```text
-AWS_REGION = us-east-1
-```
-
-`TF_VAR_operator_cidr` deve ser o IP publico do operador com `/32`.
-
-Exemplo:
-
-```text
-200.100.50.25/32
-```
-
-Para descobrir seu IP publico no PowerShell:
+Para descobrir seu IP público no PowerShell:
 
 ```powershell
 Invoke-RestMethod https://checkip.amazonaws.com
 ```
 
-Nao versione secrets reais. Arquivos `*.tfvars` e `.env` devem permanecer locais.
-
-## Bucket S3 do Terraform state
-
-O backend S3 usa a key definida em `terraform/backend.tf`:
+Cadastre o valor de `TF_VAR_operator_cidr` com `/32`:
 
 ```text
-oficina-infra-db/academy/terraform.tfstate
+<seu-ip-publico>/32
 ```
 
-Informe o nome do bucket no secret:
+## Terraform State
 
-```text
-TF_STATE_BUCKET
-```
+O Terraform State usa backend S3.
 
-Os workflows `terraform-check-plan` e `terraform-apply` garantem antes do `terraform init`:
+O nome do bucket vem do secret `TF_STATE_BUCKET`. Antes do `terraform init`, os workflows garantem que o bucket exista e esteja configurado com:
 
-- criacao do bucket, se ainda nao existir;
 - versionamento;
 - criptografia SSE-S3;
-- bloqueio de acesso publico.
+- bloqueio de acesso público.
 
-Comando usado para bloqueio publico:
+## Fluxo de provisionamento
 
-```bash
-aws s3api put-public-access-block \
-  --bucket "${TF_STATE_BUCKET}" \
-  --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
-```
+### 1. Abrir Pull Request
 
-Se o bucket ja existir em outra conta AWS, escolha outro nome globalmente unico para `TF_STATE_BUCKET`.
+Crie uma branch com as alterações de infraestrutura e abra um Pull Request para `main`.
 
-## Abrir PR e validar check/plan
+O Pull Request deve executar automaticamente:
 
-Abra um pull request para `main`.
+- `Terraform Check`;
+- `Terraform Plan`.
 
-Deve rodar automaticamente o workflow `Terraform Check and Plan`, com os jobs em sequencia:
+### 2. Validar check/plan
 
-- `Check`;
-- `Plan`.
+Antes do merge, confirme que os workflows estão verdes.
 
-O job `Check` executa:
+O check valida:
 
-- checkout;
-- setup Terraform;
-- `terraform fmt -check -recursive`;
-- `terraform init -backend=false`;
-- `terraform validate`.
+- formatação do Terraform;
+- inicialização sem backend;
+- validação da configuração.
 
-O job `Plan` executa depois que o `Check` concluir com sucesso:
+O plan valida:
 
-- checkout;
-- setup Terraform;
-- configuracao das credenciais AWS;
-- garantia do bucket S3 do state;
-- `terraform init` com backend S3;
-- `terraform plan`.
+- credenciais AWS;
+- bucket S3 do Terraform State;
+- inicialização com backend S3;
+- plano de alteração da infraestrutura.
 
-Quando check e plan estiverem verdes, faca merge na `main`.
+### 3. Fazer merge na main
 
-## Executar apply manual
+Faça merge na `main` somente depois que o Pull Request estiver aprovado e com check/plan verdes.
 
-Depois do merge:
+### 4. Executar apply manual
+
+Depois do merge, execute:
 
 ```text
 GitHub Actions > Terraform Apply > Run workflow
 ```
 
-O workflow `Terraform Apply` e manual e executa:
+O workflow executa:
 
-- checkout;
-- setup Terraform;
-- configuracao das credenciais AWS;
-- garantia do bucket S3 do state;
 - `terraform init`;
 - `terraform apply -auto-approve`.
 
+## Validar RDS criado
 
-## Validar RDS criado no Console AWS
+### Pelo Console AWS
 
 Acesse:
 
@@ -192,18 +166,17 @@ Valide:
 - status `Available`;
 - engine `SQL Server Express`;
 - endpoint preenchido;
-- public accessibility habilitado;
-- Security Group sem regra `0.0.0.0/0` para porta `1433`;
-- entrada `1433` a partir do Security Group da Lambda Auth;
-- entrada `1433` a partir do `operator_cidr` `/32`;
-- Security Group da Lambda Auth com saida `1433` para o Security Group do RDS.
+- porta `1433`;
+- Security Group sem regra `0.0.0.0/0` para a porta `1433`;
+- entrada `1433` permitida para o IP `/32` do operador;
+- entrada `1433` permitida para o Security Group da Lambda Auth.
 
-## Validar RDS via AWS CLI
+### Pela AWS CLI
+
+Use:
 
 ```powershell
-aws rds describe-db-instances `
-  --region us-east-1 `
-  --query "DBInstances[].[DBInstanceIdentifier,DBInstanceStatus,Engine,DBInstanceClass,Endpoint.Address,PubliclyAccessible]"
+aws rds describe-db-instances --region us-east-1 --query "DBInstances[].[DBInstanceIdentifier,DBInstanceStatus,Engine,DBInstanceClass,Endpoint.Address,Endpoint.Port,PubliclyAccessible]"
 ```
 
 Resultado esperado:
@@ -212,81 +185,6 @@ Resultado esperado:
 available
 sqlserver-ex
 endpoint preenchido
+porta 1433
 PubliclyAccessible = true
-```
-
-## Conectar via SSMS
-
-No SQL Server Management Studio:
-
-Server name:
-
-```text
-<rds-endpoint>,1433
-```
-
-Authentication:
-
-```text
-SQL Server Authentication
-```
-
-Login:
-
-```text
-<db_username>
-```
-
-Password:
-
-```text
-<db_password>
-```
-
-Em Options, marque `Trust Server Certificate` se aparecer. Use `Encrypt` e `Trust` conforme necessario para conexao com RDS.
-
-## Aplicar migrations vindas do oficina-api
-
-As migrations ficam no repositorio `oficina-api`.
-
-No repo `oficina-api`, gere o script idempotente:
-
-```powershell
-dotnet ef migrations script --idempotent `
-  --project src/Oficina.Infrastructure `
-  --startup-project src/Oficina.Api `
-  --output oficina-migrations.sql
-```
-
-Aplique no RDS:
-
-```powershell
-sqlcmd -S <rds-endpoint>,1433 `
-  -d OficinaDb `
-  -U <usuario> `
-  -P "<senha>" `
-  -C `
-  -i oficina-migrations.sql
-```
-
-Valide as tabelas:
-
-```powershell
-sqlcmd -S <rds-endpoint>,1433 `
-  -d OficinaDb `
-  -U <usuario> `
-  -P "<senha>" `
-  -C `
-  -Q "SELECT name FROM sys.tables ORDER BY name"
-```
-
-Valide as migrations:
-
-```powershell
-sqlcmd -S <rds-endpoint>,1433 `
-  -d OficinaDb `
-  -U <usuario> `
-  -P "<senha>" `
-  -C `
-  -Q "SELECT * FROM __EFMigrationsHistory"
 ```
