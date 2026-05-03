@@ -27,13 +27,14 @@ O Terraform cria:
 - Internet Gateway;
 - Route Table publica;
 - Security Group do RDS;
+- Security Group da Lambda Auth;
 - DB Subnet Group;
 - Amazon RDS for SQL Server Express.
 
 O RDS fica publicamente acessivel para facilitar testes locais, mas a porta `1433` fica restrita no Security Group a:
 
-- `operator_cidr`: IP publico do operador em formato `/32`;
-- `vpc_cidr`: CIDR da VPC para uso futuro pela API/Lambda dentro da VPC.
+- Security Group da Lambda Auth;
+- `operator_cidr`: IP publico do operador em formato `/32`, usado para SSMS, sqlcmd ou API local.
 
 Nao existe regra de banco para `0.0.0.0/0`.
 
@@ -177,21 +178,6 @@ O workflow `Terraform Apply` e manual e executa:
 - `terraform init`;
 - `terraform apply -auto-approve`.
 
-## Executar destroy manual
-
-Para destruir a infraestrutura:
-
-```text
-GitHub Actions > Terraform Destroy > Run workflow
-```
-
-Informe exatamente:
-
-```text
-DESTROY
-```
-
-O workflow executa `terraform destroy -auto-approve` apenas depois dessa confirmacao manual.
 
 ## Validar RDS criado no Console AWS
 
@@ -207,7 +193,10 @@ Valide:
 - engine `SQL Server Express`;
 - endpoint preenchido;
 - public accessibility habilitado;
-- Security Group sem regra `0.0.0.0/0` para porta `1433`.
+- Security Group sem regra `0.0.0.0/0` para porta `1433`;
+- entrada `1433` a partir do Security Group da Lambda Auth;
+- entrada `1433` a partir do `operator_cidr` `/32`;
+- Security Group da Lambda Auth com saida `1433` para o Security Group do RDS.
 
 ## Validar RDS via AWS CLI
 
