@@ -18,6 +18,11 @@ output "db_endpoint" {
   value       = aws_db_instance.oficina.endpoint
 }
 
+output "db_instance_identifier" {
+  description = "Identificador da instancia RDS SQL Server."
+  value       = aws_db_instance.oficina.identifier
+}
+
 output "db_address" {
   description = "Endereco DNS do RDS SQL Server."
   value       = aws_db_instance.oficina.address

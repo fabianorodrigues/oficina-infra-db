@@ -4,31 +4,16 @@
 
 Este repositório faz parte da Fase 3 do Tech Challenge FIAP e provisiona a infraestrutura do banco de dados gerenciado da Oficina API.
 
-A infraestrutura é criada com Terraform e entrega um Amazon RDS SQL Server Express usado pela aplicação principal e pela Lambda de autenticação.
+A infraestrutura é criada com Terraform e entrega um Amazon RDS SQL Server Express usado pela aplicação principal e pela Lambda de autenticação. O repositório também expõe outputs de rede e conexão para integração com os demais componentes.
 
-Os demais componentes ficam em repositórios separados:
+Os componentes ficam separados por responsabilidade:
 
 | Repositório | Responsabilidade |
 |---|---|
-| `oficina-infra-db` | Infraestrutura do banco de dados |
+| `oficina-infra-db` | Infraestrutura do banco de dados, rede mínima e outputs de integração |
 | `oficina-api` | API principal e migrations da aplicação |
 | `oficina-auth-lambda` | Lambda Auth e Lambda Authorizer |
-
-## Conteúdo deste repositório
-
-- Terraform da infraestrutura do banco;
-- VPC e subnets;
-- Security Groups;
-- DB Subnet Group;
-- Amazon RDS SQL Server Express;
-- workflows de validação, plano e provisionamento manual.
-
-Os workflows esperados são:
-
-| Workflow | Quando executa | Finalidade |
-|---|---|---|
-| `Terraform Check and Plan` | Pull Request para `main` | Validar formatação, validar Terraform e gerar plano |
-| `Terraform Apply` | Manual | Provisionar ou atualizar a infraestrutura |
+| `oficina-infra-k8s` | Infraestrutura Kubernetes |
 
 ## Arquitetura provisionada
 
@@ -42,7 +27,7 @@ O Terraform provisiona os seguintes recursos:
 - Security Group da Lambda Auth;
 - DB Subnet Group;
 - Amazon RDS SQL Server Express;
-- bucket S3 para Terraform State, criado ou validado pelo workflow.
+- bucket S3 para Terraform State, criado ou validado pelo workflow manual.
 
 Diagrama simplificado:
 
@@ -57,13 +42,12 @@ Lambda Auth
         v
 RDS SQL Server Express
 ```
+## Workflows:
 
-O RDS fica publicamente acessível para facilitar testes locais, mas a porta `1433` deve ficar restrita a:
-
-- IP público do operador, informado em `TF_VAR_operator_cidr` com `/32`;
-- Security Group da Lambda Auth.
-
-Não deve existir regra de entrada `1433` aberta para `0.0.0.0/0`.
+| Workflow | Quando executa | Finalidade |
+|---|---|---|
+| `Terraform Check` | Pull Request para `main` | Validar formatação, inicialização sem backend e sintaxe do Terraform |
+| `Terraform Apply` | Manual | Validar secrets, preparar state remoto, executar plan, aplicar infraestrutura e exibir outputs seguros |
 
 ## Secrets necessários no GitHub
 
@@ -75,14 +59,15 @@ GitHub > Settings > Secrets and variables > Actions
 
 | Secret | Descrição | Exemplo |
 |---|---|---|
-| `AWS_ACCESS_KEY_ID` | Access Key do AWS Academy | keyId1234 |
-| `AWS_SECRET_ACCESS_KEY` | Secret Key do AWS Academy | accessKey12345 |
-| `AWS_SESSION_TOKEN` | Token temporário do AWS Academy | expira |
+| `AWS_ACCESS_KEY_ID` | Access Key do AWS Academy | `CHANGE_ME_ACCESS_KEY_ID` |
+| `AWS_SECRET_ACCESS_KEY` | Secret Key do AWS Academy | `CHANGE_ME_SECRET_ACCESS_KEY` |
+| `AWS_SESSION_TOKEN` | Token temporário do AWS Academy | `CHANGE_ME_SESSION_TOKEN` |
 | `AWS_REGION` | Região AWS | `us-east-1` |
-| `TF_STATE_BUCKET` | Bucket S3 do Terraform State | `oficina-tfstate-xpto` |
-| `TF_VAR_db_username` | Usuário administrador do SQL Server | user |
-| `TF_VAR_db_password` | Senha do SQL Server | senha123 |
-| `TF_VAR_operator_cidr` | Seu IP público com `/32` | `000.000.00.00/32` |
+| `TF_STATE_BUCKET` | Bucket S3 do Terraform State | `oficina-tfstate-example` |
+| `TF_VAR_db_username` | Usuário administrador do SQL Server | `useroficinaadmin` |
+| `TF_VAR_db_password` | Senha do SQL Server | `CHANGE_ME_STRONG_PASSWORD` |
+| `TF_VAR_operator_cidr` | Seu IP público com `/32` | `203.0.113.10/32` |
+
 
 Para descobrir seu IP público no PowerShell:
 
@@ -100,11 +85,13 @@ Cadastre o valor de `TF_VAR_operator_cidr` com `/32`:
 
 O Terraform State usa backend S3.
 
-O nome do bucket vem do secret `TF_STATE_BUCKET`. Antes do `terraform init`, os workflows garantem que o bucket exista e esteja configurado com:
+O nome do bucket vem do secret `TF_STATE_BUCKET`. Antes do `terraform init`, o workflow manual garante que o bucket exista e esteja configurado com:
 
 - versionamento;
 - criptografia SSE-S3;
 - bloqueio de acesso público.
+
+O workflow `Terraform Check` usa `terraform init -backend=false`, portanto Pull Requests não dependem de credenciais AWS nem acessam o backend remoto.
 
 ## Fluxo de provisionamento
 
@@ -112,33 +99,21 @@ O nome do bucket vem do secret `TF_STATE_BUCKET`. Antes do `terraform init`, os 
 
 Crie uma branch com as alterações de infraestrutura e abra um Pull Request para `main`.
 
-O Pull Request deve executar automaticamente:
+O Pull Request deve executar automaticamente apenas:
 
-- `Terraform Check`;
-- `Terraform Plan`.
+- `Terraform Check`.
 
-### 2. Validar check/plan
+Esse check valida:
 
-Antes do merge, confirme que os workflows estão verdes.
+- formatação do Terraform com `terraform fmt -check -recursive`;
+- inicialização sem backend remoto com `terraform init -backend=false`;
+- sintaxe e configuração com `terraform validate`.
 
-O check valida:
+### 2. Fazer merge na main
 
-- formatação do Terraform;
-- inicialização sem backend;
-- validação da configuração.
+Faça merge na `main` somente depois que o Pull Request estiver aprovado e com `Terraform Check` verde.
 
-O plan valida:
-
-- credenciais AWS;
-- bucket S3 do Terraform State;
-- inicialização com backend S3;
-- plano de alteração da infraestrutura.
-
-### 3. Fazer merge na main
-
-Faça merge na `main` somente depois que o Pull Request estiver aprovado e com check/plan verdes.
-
-### 4. Executar apply manual
+### 3. Executar apply manual
 
 Depois do merge, execute:
 
@@ -146,10 +121,31 @@ Depois do merge, execute:
 GitHub Actions > Terraform Apply > Run workflow
 ```
 
-O workflow executa:
+O workflow manual executa:
 
-- `terraform init`;
-- `terraform apply -auto-approve`.
+- validação dos secrets obrigatórios sem imprimir valores;
+- configuração das credenciais AWS;
+- criação ou validação do bucket S3 do state;
+- `terraform init` com backend remoto;
+- `terraform plan` para evidência no log;
+- `terraform apply -auto-approve`;
+- exibição de outputs úteis sem senha;
+- validação da instância RDS pela AWS CLI.
+
+## Outputs para integração
+
+Após o `Terraform Apply`, use os outputs para configurar os demais repositórios.
+
+Para o `oficina-auth-lambda`, use:
+
+- `db_address`;
+- `db_port`;
+- `db_name`;
+- `db_connection_string_without_password`;
+- `lambda_subnet_ids`;
+- `lambda_security_group_ids`.
+
+A connection string não contém usuário nem senha. A senha deve continuar vindo de secret do ambiente consumidor.
 
 ## Validar RDS criado
 
@@ -173,10 +169,12 @@ Valide:
 
 ### Pela AWS CLI
 
-Use:
+O workflow `Terraform Apply` valida automaticamente a instância usando o output `db_instance_identifier`.
+
+Consulta equivalente:
 
 ```powershell
-aws rds describe-db-instances --region us-east-1 --query "DBInstances[].[DBInstanceIdentifier,DBInstanceStatus,Engine,DBInstanceClass,Endpoint.Address,Endpoint.Port,PubliclyAccessible]"
+aws rds describe-db-instances --db-instance-identifier <db_instance_identifier> --region us-east-1 --query "DBInstances[0].[DBInstanceStatus,Engine,Endpoint.Address,Endpoint.Port,PubliclyAccessible]"
 ```
 
 Resultado esperado:
