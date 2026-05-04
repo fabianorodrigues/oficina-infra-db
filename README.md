@@ -57,16 +57,16 @@ Configure os secrets em:
 GitHub > Settings > Secrets and variables > Actions
 ```
 
-| Secret | Descrição | Exemplo |
-|---|---|---|
-| `AWS_ACCESS_KEY_ID` | Access Key do AWS Academy | `CHANGE_ME_ACCESS_KEY_ID` |
-| `AWS_SECRET_ACCESS_KEY` | Secret Key do AWS Academy | `CHANGE_ME_SECRET_ACCESS_KEY` |
-| `AWS_SESSION_TOKEN` | Token temporário do AWS Academy | `CHANGE_ME_SESSION_TOKEN` |
-| `AWS_REGION` | Região AWS | `us-east-1` |
-| `TF_STATE_BUCKET` | Bucket S3 do Terraform State | `oficina-tfstate-example` |
-| `TF_VAR_db_username` | Usuário administrador do SQL Server | `useroficinaadmin` |
-| `TF_VAR_db_password` | Senha do SQL Server | `CHANGE_ME_STRONG_PASSWORD` |
-| `TF_VAR_operator_cidr` | Seu IP público com `/32` | `203.0.113.10/32` |
+| Secret | Descrição |
+|---|---|
+| `AWS_ACCESS_KEY_ID` | Access Key do AWS Academy |
+| `AWS_SECRET_ACCESS_KEY` | Secret Key do AWS Academy |
+| `AWS_SESSION_TOKEN` | Token temporário do AWS Academy |
+| `AWS_REGION` | Região AWS |
+| `TF_STATE_BUCKET` | Bucket S3 do Terraform State |
+| `TF_VAR_db_username` | Usuário administrador do SQL Server |
+| `TF_VAR_db_password` | Senha do SQL Server |
+| `TF_VAR_operator_cidr` | Seu IP público com `/32` |
 
 
 Para descobrir seu IP público no PowerShell:
@@ -85,7 +85,9 @@ Cadastre o valor de `TF_VAR_operator_cidr` com `/32`:
 
 O Terraform State usa backend S3.
 
-O nome do bucket vem do secret `TF_STATE_BUCKET`. Antes do `terraform init`, o workflow manual garante que o bucket exista e esteja configurado com:
+O nome do bucket vem do secret `TF_STATE_BUCKET`, e a região vem de `AWS_REGION`. O workflow passa esses valores ao backend com `terraform init -backend-config`, sem versionar bucket real nem região de deploy no backend.
+
+Antes do `terraform init`, o workflow manual garante que o bucket exista e esteja configurado com:
 
 - versionamento;
 - criptografia SSE-S3;
