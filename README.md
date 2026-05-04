@@ -58,7 +58,7 @@ GitHub > Settings > Secrets and variables > Actions
 ```
 
 | Secret | Descrição |
-|---|---|---|
+|---|---|
 | `AWS_ACCESS_KEY_ID` | Access Key do AWS Academy |
 | `AWS_SECRET_ACCESS_KEY` | Secret Key do AWS Academy |
 | `AWS_SESSION_TOKEN` | Token temporário do AWS Academy |
