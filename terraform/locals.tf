@@ -1,5 +1,5 @@
 locals {
-  name_prefix   = lower("${var.project_name}-${var.environment}")
+  name_prefix   = lower(var.project_name)
   db_identifier = lower("${local.name_prefix}-sqlserver")
 
   common_tags = {
@@ -9,4 +9,3 @@ locals {
     Repository  = "oficina-infra-db"
   }
 }
-

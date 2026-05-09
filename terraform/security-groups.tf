@@ -46,6 +46,20 @@ resource "aws_vpc_security_group_ingress_rule" "rds_from_operator" {
   }
 }
 
+resource "aws_vpc_security_group_ingress_rule" "rds_from_vpc" {
+  security_group_id = aws_security_group.rds.id
+  description       = "SQL Server from VPC CIDR for initial EKS integration"
+
+  cidr_ipv4   = aws_vpc.main.cidr_block
+  from_port   = 1433
+  to_port     = 1433
+  ip_protocol = "tcp"
+
+  tags = {
+    Name = "${local.name_prefix}-rds-from-vpc"
+  }
+}
+
 resource "aws_vpc_security_group_egress_rule" "lambda_auth_to_rds" {
   security_group_id = aws_security_group.lambda_auth.id
   description       = "SQL Server egress to RDS"
