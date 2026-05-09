@@ -147,6 +147,12 @@ Para o `oficina-auth-lambda`, use:
 - `lambda_subnet_ids`;
 - `lambda_security_group_ids`.
 
+Para o `oficina-infra-k8s`, use:
+
+- `vpc_id`;
+- `subnet_ids`;
+- `vpc_cidr_block`.
+
 A connection string não contém usuário nem senha. A senha deve continuar vindo de secret do ambiente consumidor.
 
 ## Validar RDS criado
@@ -167,7 +173,9 @@ Valide:
 - porta `1433`;
 - Security Group sem regra `0.0.0.0/0` para a porta `1433`;
 - entrada `1433` permitida para o IP `/32` do operador;
-- entrada `1433` permitida para o Security Group da Lambda Auth.
+- entrada `1433` permitida para o Security Group da Lambda Auth;
+- entrada `1433` permitida para o CIDR da VPC.
+
 
 ### Pela AWS CLI
 

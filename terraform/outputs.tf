@@ -3,8 +3,18 @@ output "vpc_id" {
   value       = aws_vpc.main.id
 }
 
+output "vpc_cidr_block" {
+  description = "CIDR da VPC criada para o banco."
+  value       = aws_vpc.main.cidr_block
+}
+
 output "public_subnet_ids" {
   description = "IDs das subnets publicas usadas pelo DB Subnet Group."
+  value       = aws_subnet.public[*].id
+}
+
+output "subnet_ids" {
+  description = "IDs genericos das subnets para consumo do oficina-infra-k8s. Atualmente apontam para as mesmas subnets publicas."
   value       = aws_subnet.public[*].id
 }
 
