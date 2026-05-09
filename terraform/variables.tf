@@ -1,5 +1,5 @@
 variable "aws_region" {
-  description = "Regiao AWS usada no AWS Academy Learner Lab."
+  description = "Regiao AWS usada pelo ambiente de validacao."
   type        = string
   default     = "us-east-1"
 }
@@ -11,9 +11,9 @@ variable "project_name" {
 }
 
 variable "environment" {
-  description = "Nome do ambiente usado em nomes e tags."
+  description = "Nome do ambiente usado em tags e metadados."
   type        = string
-  default     = "academy"
+  default     = "dev"
 }
 
 variable "vpc_cidr" {
@@ -67,7 +67,7 @@ variable "db_password" {
 }
 
 variable "db_instance_class" {
-  description = "Classe da instancia RDS. Use db.t3.micro se disponivel no AWS Academy Learner Lab."
+  description = "Classe da instancia RDS. Use uma classe compativel com o custo e a disponibilidade da conta AWS."
   type        = string
   default     = "db.t3.micro"
 }
@@ -79,12 +79,12 @@ variable "allocated_storage" {
 
   validation {
     condition     = var.allocated_storage >= 20 && var.allocated_storage <= 100
-    error_message = "O armazenamento deve estar entre 20 e 100 GB para compatibilidade com o AWS Academy."
+    error_message = "O armazenamento deve estar entre 20 e 100 GB para manter o ambiente leve."
   }
 }
 
 variable "backup_retention_period" {
-  description = "Retencao de backups automatizados em dias. Use 0 para demo de baixo custo."
+  description = "Retencao de backups automatizados em dias. Use 0 para ambiente temporario de baixo custo."
   type        = number
   default     = 0
 
@@ -106,7 +106,7 @@ variable "operator_cidr" {
 }
 
 variable "skip_final_snapshot" {
-  description = "Controla se o snapshot final sera ignorado ao destruir o RDS. Use true para demo."
+  description = "Controla se o snapshot final sera ignorado ao destruir o RDS. Use true para ambiente temporario."
   type        = bool
   default     = true
 }
