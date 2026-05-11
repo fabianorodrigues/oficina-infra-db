@@ -120,6 +120,9 @@ jobs:
           echo "db_address=$(terraform output -raw db_address)"
           echo "db_port=$(terraform output -raw db_port)"
           echo "db_name=$(terraform output -raw db_name)"
+          echo "vpc_id=$(terraform output -raw vpc_id)"
+          echo "subnet_ids=$(terraform output -json subnet_ids)"
+          echo "vpc_cidr_block=$(terraform output -raw vpc_cidr_block)"
           echo "lambda_subnet_ids=$(terraform output -json lambda_subnet_ids)"
           echo "lambda_security_group_ids=$(terraform output -json lambda_security_group_ids)"
 
