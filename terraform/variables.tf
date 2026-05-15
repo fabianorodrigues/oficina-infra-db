@@ -28,13 +28,24 @@ variable "vpc_cidr" {
 }
 
 variable "public_subnet_cidrs" {
-  description = "CIDRs das subnets publicas usadas pelo DB Subnet Group."
+  description = "CIDRs das subnets publicas usadas por recursos que precisam acesso publico controlado."
   type        = list(string)
   default     = ["10.30.1.0/24", "10.30.2.0/24"]
 
   validation {
     condition     = length(var.public_subnet_cidrs) >= 2 && alltrue([for cidr in var.public_subnet_cidrs : can(cidrhost(cidr, 0))])
     error_message = "public_subnet_cidrs deve conter pelo menos 2 CIDRs validos."
+  }
+}
+
+variable "private_subnet_cidrs" {
+  description = "CIDRs das subnets privadas usadas por RDS, Lambda Auth, NLB interno e VPC Link."
+  type        = list(string)
+  default     = ["10.30.101.0/24", "10.30.102.0/24"]
+
+  validation {
+    condition     = length(var.private_subnet_cidrs) >= 2 && alltrue([for cidr in var.private_subnet_cidrs : can(cidrhost(cidr, 0))])
+    error_message = "private_subnet_cidrs deve conter pelo menos 2 CIDRs validos."
   }
 }
 
@@ -94,14 +105,28 @@ variable "backup_retention_period" {
   }
 }
 
+variable "enable_operator_db_access" {
+  description = "Habilita acesso operacional ao SQL Server a partir do IP publico do operador."
+  type        = bool
+  default     = false
+}
+
 variable "operator_cidr" {
-  description = "CIDR /32 do IP publico do operador para acesso ao SQL Server via SSMS, sqlcmd ou API local."
+  description = "CIDR /32 do IP publico do operador para acesso operacional ao SQL Server quando habilitado."
   type        = string
+  default     = null
+  nullable    = true
   sensitive   = true
 
   validation {
-    condition     = can(cidrhost(nonsensitive(var.operator_cidr), 0)) && can(regex("^([0-9]{1,3}\\.){3}[0-9]{1,3}/32$", nonsensitive(var.operator_cidr)))
-    error_message = "operator_cidr deve ser um IPv4 /32, por exemplo 203.0.113.10/32."
+    condition = (
+      var.operator_cidr == null ||
+      (
+        can(cidrhost(nonsensitive(var.operator_cidr), 0)) &&
+        can(regex("^([0-9]{1,3}\\.){3}[0-9]{1,3}/32$", nonsensitive(var.operator_cidr)))
+      )
+    )
+    error_message = "operator_cidr deve ser null ou um IPv4 /32, por exemplo 203.0.113.10/32."
   }
 }
 

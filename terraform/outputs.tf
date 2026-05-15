@@ -4,15 +4,33 @@ output "vpc_id" {
   sensitive   = true
 }
 
+output "vpc_cidr_block" {
+  description = "CIDR da VPC criada para a solucao."
+  value       = aws_vpc.main.cidr_block
+  sensitive   = true
+}
+
+output "public_subnet_ids" {
+  description = "IDs das subnets publicas usadas pelo EKS minimo e acesso operacional controlado."
+  value       = aws_subnet.public[*].id
+  sensitive   = true
+}
+
+output "private_subnet_ids" {
+  description = "IDs das subnets privadas usadas por RDS, Lambda Auth, NLB interno e VPC Link."
+  value       = aws_subnet.private[*].id
+  sensitive   = true
+}
+
 output "subnet_ids" {
-  description = "IDs genericos das subnets para consumo do oficina-infra-k8s. Atualmente apontam para as mesmas subnets publicas."
+  description = "Output legado mantido temporariamente para compatibilidade. Use public_subnet_ids ou private_subnet_ids."
   value       = aws_subnet.public[*].id
   sensitive   = true
 }
 
 output "lambda_subnet_id" {
-  description = "ID da subnet que a Lambda Auth deve usar para acessar o RDS."
-  value       = aws_subnet.public[0].id
+  description = "ID da subnet privada que a Lambda Auth deve usar para acessar o RDS."
+  value       = aws_subnet.private[0].id
   sensitive   = true
 }
 
