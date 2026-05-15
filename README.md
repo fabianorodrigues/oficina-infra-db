@@ -63,9 +63,15 @@ Use o mesmo `TF_STATE_BUCKET` nos repositórios de infraestrutura. O workflow cr
 
 Configuração opcional para acesso via SSMS:
 
-- Com `ENABLE_OPERATOR_DB_ACCESS=false`, o RDS permanece sem acesso público.
 - Com `ENABLE_OPERATOR_DB_ACCESS=true`, informe `TF_VAR_operator_cidr` como IPv4 `/32`.
 - Quando habilitado, o Terraform configura o RDS como publicamente acessível e adiciona entrada TCP `1433` apenas para o CIDR informado.
+Para obter o IP público atual e montar o valor de `TF_VAR_operator_cidr`:
+
+```powershell
+$operatorIp = (Invoke-RestMethod "https://checkip.amazonaws.com").Trim()
+$operatorCidr = "$operatorIp/32"
+$operatorCidr
+```
 
 ## Como Executar
 
