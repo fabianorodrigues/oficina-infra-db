@@ -7,6 +7,7 @@ environment = "dev"
 
 vpc_cidr            = "10.30.0.0/16"
 public_subnet_cidrs = ["10.30.1.0/24", "10.30.2.0/24"]
+private_subnet_cidrs = ["10.30.101.0/24", "10.30.102.0/24"]
 
 db_name           = "OficinaDb"
 db_username       = "CHANGE_ME"
@@ -17,5 +18,6 @@ allocated_storage       = 20
 backup_retention_period = 0
 skip_final_snapshot     = true
 
-# Preencha com seu IP publico /32, por exemplo "203.0.113.10/32".
-operator_cidr = "203.0.113.10/32"
+# Habilite somente quando precisar de acesso operacional via SSMS.
+enable_operator_db_access = false
+operator_cidr             = null

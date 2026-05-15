@@ -1,6 +1,6 @@
 resource "aws_db_subnet_group" "main" {
   name       = "${local.name_prefix}-db-subnet-group"
-  subnet_ids = aws_subnet.public[*].id
+  subnet_ids = var.enable_operator_db_access ? aws_subnet.public[*].id : aws_subnet.private[*].id
 
   tags = {
     Name = "${local.name_prefix}-db-subnet-group"
@@ -24,7 +24,7 @@ resource "aws_db_instance" "oficina" {
 
   db_subnet_group_name   = aws_db_subnet_group.main.name
   vpc_security_group_ids = [aws_security_group.rds.id]
-  publicly_accessible    = true
+  publicly_accessible    = var.enable_operator_db_access
 
   multi_az                     = false
   monitoring_interval          = 0
@@ -40,5 +40,12 @@ resource "aws_db_instance" "oficina" {
 
   tags = {
     Name = local.db_identifier
+  }
+
+  lifecycle {
+    precondition {
+      condition     = !var.enable_operator_db_access || var.operator_cidr != null
+      error_message = "operator_cidr deve ser informado quando enable_operator_db_access=true."
+    }
   }
 }
