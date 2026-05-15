@@ -1,49 +1,48 @@
 # oficina-infra-db
 
-## Visão Geral
+## Visão geral
 
-Este repositório provisiona a primeira camada da solução Oficina: rede, security groups e Amazon RDS SQL Server Express. Ele entrega a base consumida pelo EKS, pela API, pela Lambda de autenticação e pelo API Gateway privado.
+Este repositório provisiona a base de rede e banco da solução Oficina na AWS. Ele cria VPC, subnets públicas e privadas, Security Groups e Amazon RDS SQL Server Express, expondo outputs consumidos pelos repositórios de Kubernetes, API e Lambdas.
 
-## Responsabilidade Deste Repositório
+## Diagrama de arquitetura
 
-- Criar VPC, subnets públicas e subnets privadas.
-- Criar security groups para RDS e Lambda Auth.
-- Criar o RDS SQL Server Express.
-- Gerar outputs de rede e banco para os demais repositórios.
-- Permitir acesso operacional ao RDS apenas quando um CIDR `/32` do operador for informado.
+```text
+┌──────────────────────── VPC 10.30.0.0/16 ───────────────────────┐
+│                                                                 │
+│  Subnet pública 1a        Subnet pública 1b                     │
+│  ┌─────────────────┐      ┌─────────────────┐                   │
+│  │  EKS nodes      │      │  EKS nodes      │                   │
+│  │  acesso IGW     │      │  acesso IGW     │                   │
+│  └─────────────────┘      └─────────────────┘                   │
+│                                                                 │
+│  Subnet privada 1a        Subnet privada 1b                     │
+│  ┌─────────────────┐      ┌─────────────────┐                   │
+│  │  RDS SQL Server │      │  NLB interno    │                   │
+│  │  Lambda Auth SG │      │  VPC Link       │                   │
+│  └─────────────────┘      └─────────────────┘                   │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-## Integração com os Outros Repositórios
+## Tecnologias utilizadas
 
-Valores consumidos:
+- Terraform
+- AWS VPC, Subnets, Internet Gateway e Security Groups
+- AWS RDS SQL Server Express
+- AWS S3 para state remoto
+- GitHub Actions
 
-| Valor | Origem | Uso |
-| --- | --- | --- |
-| `TF_STATE_BUCKET` | GitHub Secret | Bucket S3 do state remoto do Terraform |
-| Credenciais AWS | GitHub Secrets | Autenticar o workflow na AWS |
-| `TF_VAR_db_username` e `TF_VAR_db_password` | GitHub Secrets | Criar o usuário administrador do RDS |
-| `TF_VAR_operator_cidr` | GitHub Secret opcional | Habilitar e restringir acesso operacional ao banco |
+## Sequência de Deploy (modo padrão `terraform_nlb`)
 
-Valores gerados:
+| Passo | Repositório | O que provisiona |
+|-------|-------------|-----------------|
+| **1** | **oficina-infra-db ← este** | VPC, subnets, RDS SQL Server |
+| 2 | oficina-infra-k8s core | EKS, ECR, NLB interno |
+| 3 | oficina-api | Migrations, Deployment, Service |
+| 4 | oficina-auth-lambda | Lambdas de autenticação |
+| 5 | oficina-infra-k8s API Gateway | Entrada pública (HTTP API) |
+| 6 | oficina-api (opcional) | Redeploy para URL pública em e-mails |
 
-| Valor | Consumido por | Uso |
-| --- | --- | --- |
-| `vpc_id` e `vpc_cidr_block` | `oficina-infra-k8s` | EKS, regras internas e API Gateway |
-| `public_subnet_ids` | `oficina-infra-k8s` | Node group do EKS |
-| `private_subnet_ids` | `oficina-infra-k8s` | NLB interno e VPC Link |
-| `lambda_subnet_id` | `oficina-auth-lambda` | VPC da Lambda Auth |
-| `lambda_security_group_id` | `oficina-auth-lambda` | Security group da Lambda Auth |
-| Dados do RDS | `oficina-api` e `oficina-auth-lambda` | Montagem segura da connection string fora do Terraform |
-
-## Ordem de Implantação
-
-1. `oficina-infra-db`
-2. `oficina-infra-k8s` core
-3. `oficina-infra-k8s` addons
-4. `oficina-api`
-5. `oficina-auth-lambda`
-6. `oficina-infra-k8s` API Gateway
-
-## Configuração Necessária
+## Configuração necessária
 
 Configure em `GitHub > Settings > Secrets and variables > Actions`:
 
@@ -53,46 +52,40 @@ Configure em `GitHub > Settings > Secrets and variables > Actions`:
 | `AWS_SECRET_ACCESS_KEY` | Secret | Autenticação AWS |
 | `AWS_SESSION_TOKEN` | Secret opcional | Credenciais temporárias |
 | `AWS_REGION` | Secret | Região AWS |
-| `TF_STATE_BUCKET` | Secret | Nome do bucket S3 para state remoto |
+| `TF_STATE_BUCKET` | Secret | Nome do bucket S3 para o state remoto |
 | `TF_VAR_db_username` | Secret | Usuário administrador do SQL Server |
-| `TF_VAR_db_password` | Secret | Senha do SQL Server |
-| `TF_VAR_operator_cidr` | Secret opcional | CIDR `/32` do IP público autorizado para acesso operacional ao RDS |
+| `TF_VAR_db_password` | Secret | Senha do SQL Server (8 a 128 caracteres) |
+| `TF_VAR_operator_cidr` | Secret opcional | IPv4 `/32` autorizado para acesso operacional ao RDS |
+| `PROJECT_NAME` | Variable opcional | Prefixo lógico; padrão `oficina` |
+| `ENVIRONMENT` | Variable opcional | Ambiente; padrão `dev` |
 
-Use o mesmo `TF_STATE_BUCKET` nos repositórios de infraestrutura. O workflow cria o bucket quando ele não existe, habilita versionamento, criptografia e bloqueio público. O state deste root usa a key `oficina-infra-db/{environment}/terraform.tfstate`; os arquivos `.tfstate` são criados automaticamente pelo Terraform.
+O bucket S3 indicado em `TF_STATE_BUCKET` é criado automaticamente pelo workflow se não existir, com versionamento, criptografia AES256 e bloqueio de acesso público habilitados.
 
-Configuração opcional para acesso via SSMS:
+`TF_VAR_operator_cidr` controla o acesso operacional ao SQL Server:
 
-- Para permitir acesso operacional, informe `TF_VAR_operator_cidr` como IPv4 `/32`.
-- Quando `TF_VAR_operator_cidr` estiver preenchido, o Terraform configura o RDS como publicamente acessível e adiciona entrada TCP `1433` apenas para o CIDR informado.
-- Quando `TF_VAR_operator_cidr` não estiver preenchido, o RDS permanece privado e nenhuma regra pública de operador é criada.
-Para obter o IP público atual e montar o valor de `TF_VAR_operator_cidr`:
+- vazio ou ausente: RDS permanece privado;
+- preenchido com `/32`: acesso TCP `1433` liberado somente para esse IP (útil para conexão via SSMS).
 
-```powershell
-$operatorIp = (Invoke-RestMethod "https://checkip.amazonaws.com").Trim()
-$operatorCidr = "$operatorIp/32"
-$operatorCidr
-```
+## Como executar
 
-## Como Executar
+Pull requests executam `Terraform Check`, com `fmt`, `init -backend=false` e `validate`.
 
-Pull requests executam o workflow `Terraform Check`, com `fmt`, `init -backend=false` e `validate`.
-
-Após revisar e fazer merge na `main`, execute:
+Após o merge na `main`, execute manualmente:
 
 ```text
 GitHub Actions > Terraform Apply > Run workflow
 ```
 
-O workflow valida a configuração, prepara o backend S3, executa `plan`, aplica o Terraform e valida o RDS.
+O workflow prepara o backend S3, executa `plan`, aplica o Terraform e valida apenas o estado do RDS, sem imprimir connection string, endpoint ou valores sensíveis.
 
-## Como Validar na AWS
+## Como validar pela AWS
 
 Console:
 
-- Em S3, confirme que o bucket de state existe com versionamento, criptografia e bloqueio público.
-- Em RDS, confirme que a instância está `available`, usa engine SQL Server Express e que `Publicly accessible` fica `True` somente quando `TF_VAR_operator_cidr` foi informado.
-- Em Security Groups, quando `TF_VAR_operator_cidr` estiver preenchido, confirme uma regra TCP `1433` restrita ao `/32` configurado.
+- Em S3, confirme bucket de state com versionamento, criptografia e bloqueio público.
 - Em VPC, confirme subnets públicas e privadas com tags do projeto.
+- Em RDS, confirme instância `available`, engine SQL Server Express e acesso público apenas quando `TF_VAR_operator_cidr` estiver configurado.
+- Em Security Groups, confirme TCP `1433` restrito ao `/32` quando o acesso operacional estiver habilitado.
 
 CLI:
 
@@ -101,14 +94,14 @@ $env:AWS_REGION="<regiao>"
 $env:TF_STATE_BUCKET="<bucket-de-state>"
 $env:PROJECT_NAME="oficina"
 
-aws s3api get-bucket-versioning --bucket $env:TF_STATE_BUCKET
+aws s3api get-bucket-versioning --bucket $env:TF_STATE_BUCKET --query "Status"
 aws rds describe-db-instances --db-instance-identifier "$($env:PROJECT_NAME)-sqlserver" --region $env:AWS_REGION --query "DBInstances[0].{Status:DBInstanceStatus,Engine:Engine,PubliclyAccessible:PubliclyAccessible}"
-aws ec2 describe-subnets --region $env:AWS_REGION --filters "Name=tag:Repository,Values=oficina-infra-db" --query "Subnets[].{Tier:Tags[?Key=='Tier']|[0].Value,MapPublicIpOnLaunch:MapPublicIpOnLaunch}"
+aws ec2 describe-subnets --region $env:AWS_REGION --filters "Name=tag:Repository,Values=oficina-infra-db" --query "length(Subnets)"
 ```
 
-## Como Executar Localmente
+## Como validar localmente
 
-Use validações não destrutivas:
+Execute apenas validações não destrutivas:
 
 ```powershell
 cd oficina-infra-db/terraform
@@ -117,12 +110,8 @@ terraform init -backend=false
 terraform validate
 ```
 
-Para um `plan` local, crie `terraform.tfvars` a partir do exemplo e preencha valores reais apenas no ambiente local. Não versione esse arquivo.
+Para `plan` local, use `terraform.tfvars` não versionado a partir do exemplo do repositório.
 
-## Como Validar Localmente
+## Próxima etapa
 
-Confirme que os comandos locais finalizam sem erro e que nenhum arquivo versionado foi alterado. A validação funcional completa ocorre na AWS, após o `apply`. A validação de conectividade via SSMS depende da configuração temporária de `TF_VAR_operator_cidr` e deve ser feita apenas com o IP `/32` autorizado.
-
-## Próxima Etapa
-
-Executar o `oficina-infra-k8s` core usando o mesmo `TF_STATE_BUCKET`, para consumir automaticamente a rede criada por este repositório.
+Executar `oficina-infra-k8s` core com o mesmo `TF_STATE_BUCKET`, para consumir a VPC, subnets e dados de rede criados por este repositório.
