@@ -61,6 +61,12 @@ Configure em `GitHub > Settings > Secrets and variables > Actions`:
 
 Use o mesmo `TF_STATE_BUCKET` nos repositórios de infraestrutura. O workflow cria o bucket quando ele não existe, habilita versionamento, criptografia e bloqueio público. O state deste root usa a key `oficina-infra-db/{environment}/terraform.tfstate`; os arquivos `.tfstate` são criados automaticamente pelo Terraform.
 
+Configuração opcional para acesso via SSMS:
+
+- Com `ENABLE_OPERATOR_DB_ACCESS=false`, o RDS permanece sem acesso público.
+- Com `ENABLE_OPERATOR_DB_ACCESS=true`, informe `TF_VAR_operator_cidr` como IPv4 `/32`.
+- Quando habilitado, o Terraform configura o RDS como publicamente acessível e adiciona entrada TCP `1433` apenas para o CIDR informado.
+
 ## Como Executar
 
 Pull requests executam o workflow `Terraform Check`, com `fmt`, `init -backend=false` e `validate`.
@@ -75,13 +81,14 @@ O workflow valida a configuração, prepara o backend S3, executa `plan`, aplica
 
 ## Como Validar na AWS
 
-Pela Console:
+Console:
 
 - Em S3, confirme que o bucket de state existe com versionamento, criptografia e bloqueio público.
-- Em RDS, confirme que a instância está `available`, usa engine SQL Server Express e respeita a configuração de acesso público.
+- Em RDS, confirme que a instância está `available`, usa engine SQL Server Express e que `Publicly accessible` está coerente com `ENABLE_OPERATOR_DB_ACCESS`.
+- Em Security Groups, quando o acesso operacional estiver habilitado, confirme uma regra TCP `1433` restrita ao `/32` configurado.
 - Em VPC, confirme subnets públicas e privadas com tags do projeto.
 
-Pela CLI, consulte somente metadados:
+CLI:
 
 ```powershell
 $env:AWS_REGION="<regiao>"
@@ -108,7 +115,7 @@ Para um `plan` local, crie `terraform.tfvars` a partir do exemplo e preencha val
 
 ## Como Validar Localmente
 
-Confirme que os comandos locais finalizam sem erro e que nenhum arquivo versionado foi alterado. A validação funcional completa ocorre na AWS, após o `apply`.
+Confirme que os comandos locais finalizam sem erro e que nenhum arquivo versionado foi alterado. A validação funcional completa ocorre na AWS, após o `apply`. A validação de conectividade via SSMS depende da configuração temporária de acesso operacional e deve ser feita apenas com o IP `/32` autorizado.
 
 ## Próxima Etapa
 
