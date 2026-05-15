@@ -18,6 +18,5 @@ allocated_storage       = 20
 backup_retention_period = 0
 skip_final_snapshot     = true
 
-# Habilite somente quando precisar de acesso operacional via SSMS.
-enable_operator_db_access = false
-operator_cidr             = null
+# Preencha somente quando precisar de acesso operacional via SSMS.
+operator_cidr = null

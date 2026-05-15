@@ -33,7 +33,7 @@ resource "aws_vpc_security_group_ingress_rule" "rds_from_lambda_auth" {
 }
 
 resource "aws_vpc_security_group_ingress_rule" "rds_from_operator" {
-  count = var.enable_operator_db_access ? 1 : 0
+  count = local.operator_db_access_enabled ? 1 : 0
 
   security_group_id = aws_security_group.rds.id
   description       = "SQL Server from operator public IP"
