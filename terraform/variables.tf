@@ -105,14 +105,8 @@ variable "backup_retention_period" {
   }
 }
 
-variable "enable_operator_db_access" {
-  description = "Habilita acesso operacional ao SQL Server a partir do IP publico do operador."
-  type        = bool
-  default     = false
-}
-
 variable "operator_cidr" {
-  description = "CIDR /32 do IP publico do operador para acesso operacional ao SQL Server quando habilitado."
+  description = "CIDR /32 do IP publico do operador para acesso operacional ao SQL Server quando informado."
   type        = string
   default     = null
   nullable    = true

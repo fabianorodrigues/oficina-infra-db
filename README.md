@@ -10,7 +10,7 @@ Este repositório provisiona a primeira camada da solução Oficina: rede, secur
 - Criar security groups para RDS e Lambda Auth.
 - Criar o RDS SQL Server Express.
 - Gerar outputs de rede e banco para os demais repositórios.
-- Permitir acesso operacional ao RDS apenas quando habilitado explicitamente.
+- Permitir acesso operacional ao RDS apenas quando um CIDR `/32` do operador for informado.
 
 ## Integração com os Outros Repositórios
 
@@ -21,7 +21,7 @@ Valores consumidos:
 | `TF_STATE_BUCKET` | GitHub Secret | Bucket S3 do state remoto do Terraform |
 | Credenciais AWS | GitHub Secrets | Autenticar o workflow na AWS |
 | `TF_VAR_db_username` e `TF_VAR_db_password` | GitHub Secrets | Criar o usuário administrador do RDS |
-| `TF_VAR_operator_cidr` | GitHub Secret opcional | Restringir acesso operacional ao banco quando habilitado |
+| `TF_VAR_operator_cidr` | GitHub Secret opcional | Habilitar e restringir acesso operacional ao banco |
 
 Valores gerados:
 
@@ -56,16 +56,22 @@ Configure em `GitHub > Settings > Secrets and variables > Actions`:
 | `TF_STATE_BUCKET` | Secret | Nome do bucket S3 para state remoto |
 | `TF_VAR_db_username` | Secret | Usuário administrador do SQL Server |
 | `TF_VAR_db_password` | Secret | Senha do SQL Server |
-| `ENABLE_OPERATOR_DB_ACCESS` | Variable opcional | Habilita acesso operacional ao RDS; padrão `false` |
-| `TF_VAR_operator_cidr` | Secret opcional | CIDR `/32` exigido quando o acesso operacional estiver ativo |
+| `TF_VAR_operator_cidr` | Secret opcional | CIDR `/32` do IP público autorizado para acesso operacional ao RDS |
 
 Use o mesmo `TF_STATE_BUCKET` nos repositórios de infraestrutura. O workflow cria o bucket quando ele não existe, habilita versionamento, criptografia e bloqueio público. O state deste root usa a key `oficina-infra-db/{environment}/terraform.tfstate`; os arquivos `.tfstate` são criados automaticamente pelo Terraform.
 
 Configuração opcional para acesso via SSMS:
 
-- Com `ENABLE_OPERATOR_DB_ACCESS=false`, o RDS permanece sem acesso público.
-- Com `ENABLE_OPERATOR_DB_ACCESS=true`, informe `TF_VAR_operator_cidr` como IPv4 `/32`.
-- Quando habilitado, o Terraform configura o RDS como publicamente acessível e adiciona entrada TCP `1433` apenas para o CIDR informado.
+- Para permitir acesso operacional, informe `TF_VAR_operator_cidr` como IPv4 `/32`.
+- Quando `TF_VAR_operator_cidr` estiver preenchido, o Terraform configura o RDS como publicamente acessível e adiciona entrada TCP `1433` apenas para o CIDR informado.
+- Quando `TF_VAR_operator_cidr` não estiver preenchido, o RDS permanece privado e nenhuma regra pública de operador é criada.
+Para obter o IP público atual e montar o valor de `TF_VAR_operator_cidr`:
+
+```powershell
+$operatorIp = (Invoke-RestMethod "https://checkip.amazonaws.com").Trim()
+$operatorCidr = "$operatorIp/32"
+$operatorCidr
+```
 
 ## Como Executar
 
@@ -84,8 +90,8 @@ O workflow valida a configuração, prepara o backend S3, executa `plan`, aplica
 Console:
 
 - Em S3, confirme que o bucket de state existe com versionamento, criptografia e bloqueio público.
-- Em RDS, confirme que a instância está `available`, usa engine SQL Server Express e que `Publicly accessible` está coerente com `ENABLE_OPERATOR_DB_ACCESS`.
-- Em Security Groups, quando o acesso operacional estiver habilitado, confirme uma regra TCP `1433` restrita ao `/32` configurado.
+- Em RDS, confirme que a instância está `available`, usa engine SQL Server Express e que `Publicly accessible` fica `True` somente quando `TF_VAR_operator_cidr` foi informado.
+- Em Security Groups, quando `TF_VAR_operator_cidr` estiver preenchido, confirme uma regra TCP `1433` restrita ao `/32` configurado.
 - Em VPC, confirme subnets públicas e privadas com tags do projeto.
 
 CLI:
@@ -115,7 +121,7 @@ Para um `plan` local, crie `terraform.tfvars` a partir do exemplo e preencha val
 
 ## Como Validar Localmente
 
-Confirme que os comandos locais finalizam sem erro e que nenhum arquivo versionado foi alterado. A validação funcional completa ocorre na AWS, após o `apply`. A validação de conectividade via SSMS depende da configuração temporária de acesso operacional e deve ser feita apenas com o IP `/32` autorizado.
+Confirme que os comandos locais finalizam sem erro e que nenhum arquivo versionado foi alterado. A validação funcional completa ocorre na AWS, após o `apply`. A validação de conectividade via SSMS depende da configuração temporária de `TF_VAR_operator_cidr` e deve ser feita apenas com o IP `/32` autorizado.
 
 ## Próxima Etapa
 
