@@ -39,6 +39,7 @@ graph LR
 | 4 | [oficina-auth-lambda](https://github.com/fabianorodrigues/oficina-auth-lambda) | sempre |
 | 5 | [oficina-infra-k8s](https://github.com/fabianorodrigues/oficina-infra-k8s) — api-gateway | sempre |
 | 6 | [oficina-api](https://github.com/fabianorodrigues/oficina-api) — redeploy | se o pod precisar refletir `public-base-url` em e-mails |
+| 7 | [oficina-infra-k8s](https://github.com/fabianorodrigues/oficina-infra-k8s) — observability | opcional — somente após passo 5 |
 
 Cada README detalha apenas a responsabilidade do seu repositório. Para o passo a passo dos demais, consulte os READMEs correspondentes.
 
@@ -52,9 +53,8 @@ graph LR
   PubB --> PrivB[Subnet Privada AZ-b]
   PrivA --> RDS[(RDS SQL Server Express)]
   PrivB --> NLB[NLB Interno]
-  SGLambda[SG Lambda] -->|TCP 1433| SGRds[SG RDS]
-  SGRds --> RDS
-  CIDR["operator_cidr /32"] -.publicly_accessible.-> RDS
+  SGLambda[SG Lambda] -->|1433| SGRds[SG RDS] --> RDS
+  CIDR[/operator_cidr \/32/] -. publicly_accessible .-> RDS
 ```
 
 ## Configuração
