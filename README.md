@@ -2,7 +2,11 @@
 
 ## Visão geral
 
-Repositório que provisiona a base de rede e banco de dados da solução Oficina na AWS. Cria VPC, subnets públicas e privadas, Security Groups e a instância Amazon RDS SQL Server Express. É o ponto de partida da cadeia de deploy: os demais repositórios consomem seus outputs.
+Repositório que provisiona a base de rede e banco de dados da solução Oficina na AWS. Cria VPC, subnets públicas e privadas, Security Groups e a instância Amazon RDS SQL Server Express.
+
+- Provisiona a base de rede (VPC, subnets públicas e privadas, Internet Gateway, Security Groups) e a instância RDS SQL Server Express.
+- Expõe outputs consumidos pelos demais repositórios via remote state S3 e via filtros AWS CLI.
+- Não cria roles IAM, ECR, EKS, Lambdas, API Gateway nem DNS público.
 
 ## Tecnologias utilizadas
 
@@ -14,7 +18,7 @@ Repositório que provisiona a base de rede e banco de dados da solução Oficina
 
 ## Solução integrada
 
-A solução Oficina é composta por 4 repositórios independentes que, juntos, formam um sistema de gestão de oficina mecânica na AWS.
+A solução Oficina é composta por 4 repositórios que formam um sistema de gestão de oficina mecânica na AWS.
 
 ```mermaid
 graph LR
@@ -26,93 +30,63 @@ graph LR
   API --> APIGW
 ```
 
-| Passo | Repositório | Workflow | Quando aplicar |
-|---|---|---|---|
-| 1 | `oficina-infra-db` | Terraform Apply | sempre |
-| 2 | `oficina-infra-k8s` root `terraform` (core) | Terraform Apply | sempre |
-| 2a | `oficina-infra-k8s` root `terraform/addons` | Terraform Apply | apenas se `LOAD_BALANCER_PROVISIONING_MODE=aws_lbc` |
-| 3 | `oficina-api` | Deploy API | sempre |
-| 4 | `oficina-auth-lambda` | Deploy Lambda | sempre |
-| 5 | `oficina-infra-k8s` root `terraform/api-gateway` | Terraform API Gateway Apply | sempre |
-| 6 | `oficina-api` | Deploy API (redeploy) | se o pod precisar refletir `public-base-url` recém-criado em e-mails |
+| Passo | Repositório | Quando aplicar |
+|---|---|---|
+| 1 | [oficina-infra-db](https://github.com/fabianorodrigues/oficina-infra-db) | sempre |
+| 2 | [oficina-infra-k8s](https://github.com/fabianorodrigues/oficina-infra-k8s) — core | sempre |
+| 2a | [oficina-infra-k8s](https://github.com/fabianorodrigues/oficina-infra-k8s) — addons | apenas se `LOAD_BALANCER_PROVISIONING_MODE=aws_lbc` |
+| 3 | [oficina-api](https://github.com/fabianorodrigues/oficina-api) | sempre |
+| 4 | [oficina-auth-lambda](https://github.com/fabianorodrigues/oficina-auth-lambda) | sempre |
+| 5 | [oficina-infra-k8s](https://github.com/fabianorodrigues/oficina-infra-k8s) — api-gateway | sempre |
+| 6 | [oficina-api](https://github.com/fabianorodrigues/oficina-api) — redeploy | se o pod precisar refletir `public-base-url` em e-mails |
 
 Cada README detalha apenas a responsabilidade do seu repositório. Para o passo a passo dos demais, consulte os READMEs correspondentes.
-
-## Responsabilidade deste repositório
-
-- Provisiona a base de rede (VPC, subnets públicas e privadas, Internet Gateway, Security Groups) e a instância RDS SQL Server Express.
-- Expõe outputs consumidos pelos demais repositórios via remote state S3 e via filtros AWS CLI.
-- Não cria roles IAM, ECR, EKS, Lambdas, API Gateway nem DNS público.
 
 ## Arquitetura
 
 ```mermaid
-graph TB
-  subgraph VPC[VPC oficina 10.30.0.0/16]
-    direction TB
-    subgraph PubA[Subnet pública AZ-a]
-      IGW[Internet Gateway]
-    end
-    subgraph PubB[Subnet pública AZ-b]
-      EksB[EKS nodes - provisionados por oficina-infra-k8s]
-    end
-    subgraph PrivA[Subnet privada AZ-a]
-      RDS[(RDS SQL Server Express)]
-    end
-    subgraph PrivB[Subnet privada AZ-b]
-      NLB[NLB interno - provisionado por oficina-infra-k8s]
-    end
-    SGRds[SG RDS]
-    SGLambda[SG Lambda Auth]
-  end
-  Op[operator_cidr opcional /32] -. publicly_accessible .-> RDS
-  SGLambda --> SGRds
-  SGRds --- RDS
+graph LR
+  IGW[Internet Gateway] --> PubA[Subnet Pública AZ-a]
+  IGW --> PubB[Subnet Pública AZ-b]
+  PubA --> PrivA[Subnet Privada AZ-a]
+  PubB --> PrivB[Subnet Privada AZ-b]
+  PrivA --> RDS[(RDS SQL Server Express)]
+  PrivB --> NLB[NLB Interno]
+  SGLambda[SG Lambda] -->|TCP 1433| SGRds[SG RDS]
+  SGRds --> RDS
+  CIDR["operator_cidr /32"] -.publicly_accessible.-> RDS
 ```
 
-## Valores consumidos
+## Configuração
 
-Não há outputs consumidos de outros repositórios. Apenas credenciais AWS e parâmetros de configuração definidos em Secrets e Variables do GitHub Actions.
+Configure em `GitHub > Settings > Secrets and variables > Actions`.
 
-## Valores gerados
+### Obrigatório
 
-| Output | Consumido por | Como é consumido |
+| Nome | Tipo | Descrição |
 | --- | --- | --- |
-| `vpc_id`, `vpc_cidr_block` | `oficina-infra-k8s` (todos os roots) | `data.terraform_remote_state.db` no S3 |
-| `public_subnet_ids` | `oficina-infra-k8s` (root core) | remote state |
-| `private_subnet_ids` | `oficina-infra-k8s` (root api-gateway) | remote state |
-| `lambda_subnet_id` | `oficina-auth-lambda` | obtido via AWS CLI; configurado manualmente como Secret CSV |
-| `lambda_security_group_id` | `oficina-auth-lambda` | obtido via AWS CLI; configurado manualmente como Secret CSV |
-| `db_address`, `db_port`, `db_name` | `oficina-api`, `oficina-auth-lambda` | compõem o connection string configurado como Secret |
+| `AWS_ACCESS_KEY_ID` | Secret | Credencial AWS |
+| `AWS_SECRET_ACCESS_KEY` | Secret | Credencial AWS |
+| `AWS_REGION` | Secret | Região AWS |
+| `TF_STATE_BUCKET` | Secret | Bucket S3 do state; criado automaticamente pelo workflow se não existir, com versionamento, criptografia AES256 e bloqueio público |
+| `TF_VAR_db_username` | Secret | Usuário administrador do SQL Server (1 a 128 caracteres, começa com letra) |
+| `TF_VAR_db_password` | Secret | Senha do SQL Server (8 a 128 caracteres) |
 
-## Configuração necessária
+### Opcional
 
-Configure em `GitHub > Settings > Secrets and variables > Actions`:
+| Nome | Tipo | Default | Descrição |
+| --- | --- | --- | --- |
+| `AWS_SESSION_TOKEN` | Secret | — | Credenciais temporárias (STS) |
+| `TF_VAR_operator_cidr` | Secret | vazio (RDS privado) | IPv4 `/32` para acesso operacional ao RDS; preenchido habilita `publicly_accessible=true` e libera TCP `1433` |
+| `PROJECT_NAME` | Variable | `oficina` | Prefixo lógico em nomes e tags |
+| `ENVIRONMENT` | Variable | `dev` | Ambiente |
+| `TF_VAR_aws_region` | Variable | `us-east-1` | Região AWS aplicada ao provider |
+| `TF_VAR_vpc_cidr` | Variable | `10.30.0.0/16` | CIDR da VPC |
+| `TF_VAR_db_instance_class` | Variable | `db.t3.micro` | Classe RDS |
+| `TF_VAR_allocated_storage` | Variable | `20` | Armazenamento em GB (20 a 100) |
+| `TF_VAR_backup_retention_period` | Variable | `0` | Retenção de backup em dias (0 a 35) |
 
-| Nome | Tipo | Obrigatório | Origem ou Default | Descrição |
-| --- | --- | --- | --- | --- |
-| `AWS_ACCESS_KEY_ID` | Secret | Sim | — | Credencial AWS |
-| `AWS_SECRET_ACCESS_KEY` | Secret | Sim | — | Credencial AWS |
-| `AWS_SESSION_TOKEN` | Secret | Não | — | Credenciais temporárias (STS) |
-| `AWS_REGION` | Secret | Sim | — | Região AWS |
-| `TF_STATE_BUCKET` | Secret | Sim | Auto-provisionado pelo workflow | Bucket S3 do state; criado se não existir, com versionamento, criptografia AES256 e bloqueio público |
-| `TF_VAR_db_username` | Secret | Sim | — | Usuário administrador do SQL Server (1 a 128 caracteres, começa com letra) |
-| `TF_VAR_db_password` | Secret | Sim | — | Senha do SQL Server (8 a 128 caracteres) |
-| `TF_VAR_operator_cidr` | Secret | Não | vazio (RDS privado) | IPv4 `/32` autorizado para acesso operacional ao RDS; preenchido habilita `publicly_accessible=true` |
-| `PROJECT_NAME` | Variable | Não | `oficina` | Prefixo lógico em nomes e tags |
-| `ENVIRONMENT` | Variable | Não | `dev` | Ambiente |
-| `TF_VAR_aws_region` | Variable | Não | `us-east-1` | Região AWS aplicada ao provider |
-| `TF_VAR_vpc_cidr` | Variable | Não | `10.30.0.0/16` | CIDR da VPC |
-| `TF_VAR_db_instance_class` | Variable | Não | `db.t3.micro` | Classe RDS |
-| `TF_VAR_allocated_storage` | Variable | Não | `20` | Armazenamento em GB (20 a 100) |
-| `TF_VAR_backup_retention_period` | Variable | Não | `0` | Retenção de backup em dias (0 a 35) |
-
-`TF_VAR_operator_cidr` controla o acesso operacional ao SQL Server:
-
-- vazio ou ausente: o RDS permanece privado dentro da VPC;
-- preenchido com `/32`: TCP `1433` liberado somente para esse IP, útil para conexão via SSMS.
-
-## Como executar
+## Execução
 
 Pull requests executam `Terraform Check` com `fmt`, `init -backend=false` e `validate`.
 
@@ -124,7 +98,7 @@ GitHub Actions > Terraform Apply > Run workflow
 
 O workflow prepara o backend S3, executa `plan`, aplica o Terraform e valida o estado do RDS sem imprimir connection string, endpoint ou valores sensíveis.
 
-## Como validar pela AWS
+## Validação
 
 ### Console
 
@@ -145,7 +119,7 @@ aws rds describe-db-instances --db-instance-identifier "$($env:PROJECT_NAME)-sql
 aws ec2 describe-subnets --region $env:AWS_REGION --filters "Name=tag:Repository,Values=oficina-infra-db" --query "length(Subnets)"
 ```
 
-## Como executar localmente
+## Execução local
 
 Apenas validações não destrutivas. Não execute `apply` local.
 
@@ -156,16 +130,14 @@ terraform init -backend=false
 terraform validate
 ```
 
-Para `plan` local em ambiente próprio, use `terraform.tfvars` não versionado a partir do exemplo do repositório.
-
-## Monitoramento e Observabilidade
+## Observabilidade
 
 A camada de dados expõe métricas nativas do RDS via CloudWatch. Não há agente externo neste repositório.
 
 ### Configurar
 
 - Não há secrets adicionais. As métricas básicas do RDS (`CPUUtilization`, `DatabaseConnections`, `FreeStorageSpace`, `ReadIOPS`, `WriteIOPS`) são publicadas automaticamente no namespace `AWS/RDS`.
-- Enhanced Monitoring e Performance Insights estão desabilitados por padrão. Para habilitá-los, edite os atributos `monitoring_interval` e `performance_insights_enabled` em `terraform/rds.tf` (fora do escopo padrão deste repositório).
+- Enhanced Monitoring e Performance Insights estão desabilitados por padrão. Para habilitá-los, edite `monitoring_interval` e `performance_insights_enabled` em `terraform/rds.tf`.
 
 ### Executar
 
@@ -173,9 +145,7 @@ Nada a executar — as métricas básicas são habilitadas automaticamente pelo 
 
 ### Validar
 
-Console:
-
-- CloudWatch > Metrics > AWS/RDS, confirme série temporal para `DBInstanceIdentifier=<projeto>-sqlserver`.
+Console: CloudWatch > Metrics > AWS/RDS, confirme série temporal para `DBInstanceIdentifier=<projeto>-sqlserver`.
 
 CLI (PowerShell):
 
@@ -190,4 +160,4 @@ aws cloudwatch list-metrics --namespace "AWS/RDS" `
 
 ## Próxima etapa
 
-Executar `oficina-infra-k8s` root `terraform` (core) com o mesmo `TF_STATE_BUCKET`, para consumir a VPC e as subnets criadas por este repositório via remote state.
+Executar [oficina-infra-k8s](https://github.com/fabianorodrigues/oficina-infra-k8s) root `terraform` (core) com o mesmo `TF_STATE_BUCKET`. O core consome `vpc_id`, `public_subnet_ids` e `private_subnet_ids` deste repositório via remote state S3.
