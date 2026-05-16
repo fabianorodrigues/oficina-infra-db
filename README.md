@@ -126,7 +126,6 @@ A camada de dados expõe métricas nativas do RDS via CloudWatch. Não há agent
 ### Configurar
 
 - Não há secrets adicionais. As métricas básicas do RDS (`CPUUtilization`, `DatabaseConnections`, `FreeStorageSpace`, `ReadIOPS`, `WriteIOPS`) são publicadas automaticamente no namespace `AWS/RDS`.
-- Enhanced Monitoring e Performance Insights estão desabilitados por padrão. Para habilitá-los, edite `monitoring_interval` e `performance_insights_enabled` em `terraform/rds.tf`.
 
 ### Validar
 
