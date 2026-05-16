@@ -119,17 +119,6 @@ aws rds describe-db-instances --db-instance-identifier "$($env:PROJECT_NAME)-sql
 aws ec2 describe-subnets --region $env:AWS_REGION --filters "Name=tag:Repository,Values=oficina-infra-db" --query "length(Subnets)"
 ```
 
-## Execução local
-
-Apenas validações não destrutivas. Não execute `apply` local.
-
-```powershell
-cd oficina-infra-db/terraform
-terraform fmt -check -recursive
-terraform init -backend=false
-terraform validate
-```
-
 ## Observabilidade
 
 A camada de dados expõe métricas nativas do RDS via CloudWatch. Não há agente externo neste repositório.
