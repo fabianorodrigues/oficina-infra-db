@@ -128,10 +128,6 @@ A camada de dados expõe métricas nativas do RDS via CloudWatch. Não há agent
 - Não há secrets adicionais. As métricas básicas do RDS (`CPUUtilization`, `DatabaseConnections`, `FreeStorageSpace`, `ReadIOPS`, `WriteIOPS`) são publicadas automaticamente no namespace `AWS/RDS`.
 - Enhanced Monitoring e Performance Insights estão desabilitados por padrão. Para habilitá-los, edite `monitoring_interval` e `performance_insights_enabled` em `terraform/rds.tf`.
 
-### Executar
-
-Nada a executar — as métricas básicas são habilitadas automaticamente pelo RDS na criação da instância.
-
 ### Validar
 
 Console: CloudWatch > Metrics > AWS/RDS, confirme série temporal para `DBInstanceIdentifier=<projeto>-sqlserver`.
