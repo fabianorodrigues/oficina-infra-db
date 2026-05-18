@@ -22,7 +22,7 @@ Camada de rede e banco de dados da solução Oficina na AWS.
 
 ## <a id="visão-geral"></a> 🎯 Visão geral
 
-Primeiro passo da solução. Provisiona via Terraform a base de rede (VPC, subnets públicas e privadas em duas AZs, Internet Gateway, Security Groups) e a instância Amazon RDS SQL Server Express.
+**Passo 1 de 7** da solução Oficina. Provisiona via Terraform a base de rede (VPC, subnets públicas e privadas em duas AZs, Internet Gateway, Security Groups) e a instância Amazon RDS SQL Server Express.
 
 - Expõe outputs consumidos pelos demais repositórios via remote state S3.
 - Cria o bucket de state automaticamente, com versionamento, AES256 e bloqueio público.
@@ -55,9 +55,6 @@ graph LR
 | 5 | [oficina-infra-k8s](https://github.com/fabianorodrigues/oficina-infra-k8s) — api-gateway | sempre |
 | 6 | [oficina-api](https://github.com/fabianorodrigues/oficina-api) — redeploy | opcional, se `public-base-url` precisa entrar nos e-mails |
 | 7 | [oficina-infra-k8s](https://github.com/fabianorodrigues/oficina-infra-k8s) — observability | opcional, após o passo 5 |
-
-> [!NOTE]
-> No passo 2, o Metrics Server é sempre instalado (HPA da API depende dele); o AWS Load Balancer Controller só é instalado quando `LOAD_BALANCER_PROVISIONING_MODE=aws_lbc`.
 
 ---
 
@@ -197,3 +194,6 @@ aws cloudwatch list-metrics --namespace "AWS/RDS" `
 ## <a id="próxima-etapa"></a> ➡️ Próxima etapa
 
 Executar [oficina-infra-k8s](https://github.com/fabianorodrigues/oficina-infra-k8s) — **passo 2 (core + addons)** — com o mesmo `TF_STATE_BUCKET`. O core consome `vpc_id`, `public_subnet_ids` e `private_subnet_ids` deste repositório via remote state S3.
+
+> [!TIP]
+> **Checkpoint antes de seguir:** RDS com `DBInstanceStatus=available` e outputs publicados no S3 backend (`s3://<bucket>/oficina-infra-db/<ambiente>/terraform.tfstate`).
